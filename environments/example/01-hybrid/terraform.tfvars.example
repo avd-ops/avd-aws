@@ -1,0 +1,10 @@
+region             = "us-east-1"
+availability_zone  = "us-east-1a"
+environment        = "dev"
+profile            = "lab"
+source_ami_id      = "ami-00000000000000000"
+session_host_count = 1
+arc_resource_group = "rg-avd-arc-dev"
+host_pool_name     = "hp-avd-hybrid-dev"
+arc_sp_secret_arn  = "arn:aws:secretsmanager:us-east-1:000000000000:secret:avd-arc-sp-dev-000000"
+enable_fslogix_fsx = false
