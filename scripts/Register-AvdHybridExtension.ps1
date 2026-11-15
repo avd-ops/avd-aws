@@ -27,12 +27,20 @@ $ErrorActionPreference = 'Stop'
 
 az account set --subscription $SubscriptionId
 
-$tokenJson = az desktopvirtualization hostpool retrieve-registration-token `
+$tokenRaw = az desktopvirtualization hostpool retrieve-registration-token `
     --resource-group $HostPoolResourceGroup `
-    --name $HostPoolName | ConvertFrom-Json
-$regToken = $tokenJson.token
+    --name $HostPoolName 2>$null
+$regToken = if ($tokenRaw) { ($tokenRaw | ConvertFrom-Json).token } else { $null }
 if (-not $regToken) {
-    throw "Failed to retrieve registration token for host pool $HostPoolName."
+    $expiry = (Get-Date).ToUniversalTime().AddHours(4).ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $updateJson = az desktopvirtualization hostpool update `
+        --resource-group $HostPoolResourceGroup `
+        --name $HostPoolName `
+        --registration-info "expiration-time=$expiry" "registration-token-operation=Update" | ConvertFrom-Json
+    $regToken = $updateJson.registrationInfo.token
+}
+if (-not $regToken) {
+    throw "Failed to retrieve or generate registration token for host pool $HostPoolName."
 }
 
 $machines = az connectedmachine list --resource-group $ArcResourceGroup --query "[?status=='Connected'].name" -o json | ConvertFrom-Json

@@ -40,6 +40,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Ensure AWS CLI v2 is discoverable when running under EC2Launch UserData
+$awsCliDir = 'C:\Program Files\Amazon\AWSCLIV2'
+if ((Test-Path $awsCliDir) -and (($env:PATH -split ';') -notcontains $awsCliDir)) {
+    $env:PATH = "$awsCliDir;$env:PATH"
+}
+
 # 1. Entra ID join (bulk-enrollment .ppkg) if not already joined
 if ($EntraProvisioningPackagePath -and (Test-Path $EntraProvisioningPackagePath)) {
     $dsreg = & dsregcmd.exe /status | Out-String
@@ -63,7 +69,17 @@ if (-not (Test-Path $azcmagent)) {
 }
 
 # 3. Connect to Azure Arc if not already Connected
-$status = & $azcmagent show --json 2>$null | ConvertFrom-Json
+$status = $null
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    $showOutput = & $azcmagent show --json 2>$null
+    if ($LASTEXITCODE -eq 0 -and $showOutput) {
+        $status = $showOutput | ConvertFrom-Json
+    }
+} finally {
+    $ErrorActionPreference = $prevEap
+}
 if (-not $status -or $status.status -ne 'Connected') {
     $plainSpSecret = $null
 

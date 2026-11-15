@@ -6,32 +6,51 @@ AWS public Windows AMIs only publish Windows Server images. Because **AVD Hybrid
 
 1. **Build in Azure (`win11-24h2-ent`)**
    - **Base SKU**: Single-session `microsoftwindowsdesktop:windows-11:win11-24h2-ent:latest` (never `win11-24h2-ent-ms`).
-   - **Pre-staging**: Stage `AzureConnectedMachineAgent.msi` (and optionally WDOT optimization), then **disable and remove `WindowsAzureGuestAgent`** before generalizing so the VM does not poll Azure IMDS (`169.254.169.254`) from AWS.
-   - **Generalize**: Run `sysprep /generalize /oobe /shutdown /mode:vm` and export a fixed-size `.vhd` page blob.
+   - **Pre-`sysprep` AWS prerequisites**:
+     - Install **EC2Launch v2**, **AWS CLI v2** (or `AWS.Tools.SecretsManager` for `scripts/arc-onboard.ps1`), and the **AWS ENA driver**.
+     - Stage `AzureConnectedMachineAgent.msi` (and optionally WDOT optimization), then **disable and remove `WindowsAzureGuestAgent`** before generalizing so the VM does not poll Azure IMDS (`169.254.169.254`) from AWS.
+     - Run `EC2Launch.exe reset --clean` before `sysprep` so `.run-once` is cleared and `EC2Launch v2` executes `UserData` on first boot.
+   - **Generalize**: Include an `Unattend.xml` with `SkipMachineOOBE=true` and `SkipUserOOBE=true` (so Windows 11 does not pause on the interactive OOBE screen on AWS), run `sysprep /generalize /oobe /shutdown /mode:vm /unattend:<path-to-Unattend.xml>`, and export a fixed-size `.vhd` page blob.
 
 2. **Stage `.vhd` in S3 (Short-Lived)**
    - Create or use a private, encrypted S3 staging bucket in the target AWS region.
-   - Copy the generalized `.vhd` from Azure Storage (via short-lived SAS URL) to S3 (`aws s3 cp`).
-   - Revoke the SAS token and delete the Azure staging VHD/snapshot immediately after transfer.
+   - Copy the generalized `.vhd` from Azure Storage (via short-lived SAS URL) using `azcopy` to an ephemeral staging volume (single-stream `curl` resets on large VHDs), then upload to S3 with `aws s3 cp` and verify the exact byte count.
+   - Revoke the SAS token and delete the Azure staging VHD/snapshot (and any ephemeral transfer disk) immediately after transfer.
 
 3. **Import into EC2 as BYOL UEFI AMI**
    - **Prerequisites**: Ensure the `vmimport` IAM service role exists with `s3:GetObject` / `s3:GetBucketLocation` / `s3:ListBucket` on the staging bucket and `ec2:ModifySnapshotAttribute` / `ec2:CopySnapshot` / `ec2:RegisterImage` / `ec2:Describe*`.
-   - Run EC2 VM Import/Export:
+   - **Recommended path (`import-snapshot` + `register-image`)**: `aws ec2 import-image` stalled at `62% booting` on `win11-24h2-ent`; use `import-snapshot` followed by `register-image` instead:
      ```bash
-     aws ec2 import-image \
-       --description "AVD Hybrid win11-24h2-ent BYOL UEFI" \
-       --license-type BYOL \
-       --boot-mode uefi \
-       --disk-containers '[{
+     aws ec2 import-snapshot \
+       --description "AVD Hybrid win11-24h2-ent" \
+       --disk-container '{
          "Description": "win11-24h2-ent",
          "Format": "VHD",
          "UserBucket": {
            "S3Bucket": "<staging-bucket>",
            "S3Key": "avd-win11-24h2-ent.vhd"
          }
+       }'
+     ```
+   - Poll `aws ec2 describe-import-snapshot-tasks --import-task-ids <task-id>` until `Status == "completed"`, then register the AMI from the resulting `<snapshot-id>`:
+     ```bash
+     aws ec2 register-image \
+       --name "avd-win11-24h2-ent-byol-$(date +%Y%m%d)" \
+       --architecture x86_64 \
+       --virtualization-type hvm \
+       --root-device-name /dev/sda1 \
+       --boot-mode uefi \
+       --tpm-support v2.0 \
+       --ena-support \
+       --block-device-mappings '[{
+         "DeviceName": "/dev/sda1",
+         "Ebs": {
+           "SnapshotId": "<snapshot-id>",
+           "VolumeType": "gp3",
+           "DeleteOnTermination": true
+         }
        }]'
      ```
-   - Poll `aws ec2 describe-import-image-tasks --import-task-ids <task-id>` until `Status == "completed"`.
    - **Delete the `.vhd` object from S3 immediately** once the AMI is `available` so no idle S3 storage cost remains.
 
 4. **Optional Packer Layer (`packer/avd-win11-aws`) & Deploy (`01-hybrid`)**
