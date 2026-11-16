@@ -5,10 +5,10 @@ Part of [avd-ops](https://avd-ops.dev/), the open toolkit for Azure Virtual Desk
 Amazon Web Services (AWS) session-host control plane (`avd-aws`) for **Azure Virtual Desktop (AVD) Hybrid**. Provisions AWS EC2 session hosts (Launch Template + Auto Scaling Group), VPC/NAT Gateway egress, optional Amazon FSx for NetApp ONTAP (SMB) for FSLogix, and Azure Arc + `Microsoft.AzureVirtualDesktop.CloudDeviceExtension` onboarding into an Azure-hosted AVD Hybrid host pool.
 
 > [!WARNING]
-> **Personal project. Research and learning only. Not for production. No warranty.**
+> **Community research project. Use at your own risk. No warranty.**
 >
 > - This is my own personal project, built on my own time **for research and learning**. It is **not affiliated with, endorsed by or supported by my employer**, Liquidware, ServiceNow, AWS or Microsoft, and it does not represent their views, products or guidance.
-> - **Do not run any of it in production** or against accounts, subscriptions, or tenants that matter. Test it first in a dedicated lab environment.
+> - Test it first in a dedicated lab subscription and tenant before using it in production; you are responsible for reviewing the code and validating it for your environment.
 > - It is provided **"as is", without warranty of any kind**, under the [MIT License](LICENSE). You use it at your own risk.
 > - **Contributions and forks are welcome and encouraged.** See [Contributing](#contributing).
 
@@ -50,4 +50,4 @@ Fork it, open an issue or a pull request. Follow the family guardrails in [AGENT
 
 ## License and disclaimer
 
-[MIT](LICENSE). Personal project, not for production, provided as is, not affiliated with the author's employer, Liquidware, ServiceNow, AWS or Microsoft.
+[MIT](LICENSE). Community research project, provided as is, use at your own risk, not affiliated with the author's employer, Liquidware, ServiceNow, AWS or Microsoft.
