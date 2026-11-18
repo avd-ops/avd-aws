@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "False positive on S3Key filename example in docs/image-pipeline.md"
+regexes = [
+  '''avd-win11-24h2-ent\.vhd''',
+]
